@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Terminplaner</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root {
+    --blue:       #1a56db;
+    --blue-light: #e8f0fe;
+    --blue-mid:   #3b82f6;
+    --green:      #0f6e56;
+    --green-light:#e1f5ee;
+    --border:     #e2e8f0;
+    --bg:         #f8fafc;
+    --white:      #ffffff;
+    --text:       #0f172a;
+    --muted:      #64748b;
+    --slot-h:     32px;
+    --header-h:   56px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    height: var(--header-h);
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    flex-shrink: 0;
+  }
+  .toolbar-logo {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--blue);
+    letter-spacing: -0.3px;
+    margin-right: 8px;
+  }
+  .week-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+  }
+  .kw-badge {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: 6px;
+  }
+  .btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--white);
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.1s;
+  }
+  .btn:hover { background: var(--bg); }
+  .btn-today {
+    background: var(--blue-light);
+    color: var(--blue);
+    border-color: #c7d7fd;
+  }
+  .btn-today:hover { background: #d4e0fe; }
+  .hint-text {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  /* ── Calendar ── */
+  .cal-wrap {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: 52px repeat(7, minmax(0, 1fr));
+    min-width: 600px;
+  }
+
+  /* Column headers */
+  .col-head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 8px 4px 6px;
+    text-align: center;
+    background: var(--white);
+    border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .col-head-day {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+  .col-head-date {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.2;
+    margin-top: 1px;
+  }
+  .col-head.today .col-head-date {
+    background: var(--blue);
+    color: var(--white);
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 2px auto 0;
+    font-size: 16px;
+  }
+  .col-head.today .col-head-day { color: var(--blue); }
+
+  /* Time column */
+  .time-cell {
+    position: sticky;
+    top: 0;
+    padding: 0 6px 0 4px;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: right;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    height: var(--slot-h);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 3px;
+    background: var(--white);
+  }
+  .time-head-corner {
+    position: sticky;
+    top: 0;
+    z-index: 11;
+    background: var(--white);
+    border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  /* Slots */
+  .slot {
+    height: var(--slot-h);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 2px 4px;
+    cursor: pointer;
+    transition: background 0.08s;
+    position: relative;
+    overflow: hidden;
+  }
+  .slot:hover { background: var(--blue-light); }
+  .slot.busy {
+    background: var(--green-light);
+    border-left: 3px solid var(--green);
+    cursor: default;
+  }
+  .slot.busy:hover { background: var(--green-light); }
+  .slot.selected { background: #dbeafe !important; border-left: 3px solid var(--blue); }
+  .slot-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: #085041;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .slot-sub {
+    font-size: 9px;
+    color: var(--green);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Hour separator */
+  .slot.hour-start {
+    border-top: 1px solid #cbd5e1;
+  }
+
+  /* ── Modal overlay ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--white);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    width: 360px;
+    padding: 24px;
+    animation: slideUp 0.18s ease;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .modal-time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--blue);
+    background: var(--blue-light);
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-top: 5px;
+    font-weight: 500;
+  }
+  .modal-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .modal-close:hover { background: var(--bg); }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .field .field-hint {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+  }
+  .field input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--white);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .field input:focus {
+    border-color: var(--blue-mid);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .btn-cancel-modal {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-cancel-modal:hover { background: var(--bg); }
+  .btn-save {
+    flex: 1;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--blue);
+    color: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.1s;
+  }
+  .btn-save:hover { background: #1741b6; }
+  .btn-save:disabled { background: #93c5fd; cursor: default; }
+
+  .save-hint {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* Status banner */
+  .status-bar {
+    display: none;
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f6e56;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 200;
+    animation: fadeInUp 0.2s ease;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <span class="toolbar-logo">&#128197; Terminplaner</span>
+  <button class="btn" onclick="changeWeek(-1)">&#8592; Zurück</button>
+  <button class="btn btn-today" onclick="goToday()">Heute</button>
+  <button class="btn" onclick="changeWeek(1)">Vor &#8594;</button>
+  <span class="week-label" id="week-label"></span>
+  <span class="hint-text">Doppelklick auf freien Slot = neuer Termin</span>
+</div>
+
+<!-- Calendar -->
+<div class="cal-wrap">
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Neuer Termin</div>
+        <div class="modal-time-badge" id="modal-time-badge">&#128337; Zeit</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()" title="Schließen">&#215;</button>
+    </div>
+
+    <div class="field">
+      <label>Name <span class="field-hint">→ wird Titel des Termins</span></label>
+      <input id="f-name" type="text" placeholder="z.B. Müller GmbH" />
+    </div>
+    <div class="field">
+      <label>Adresse <span class="field-hint">→ wird Ort des Termins</span></label>
+      <input id="f-addr" type="text" placeholder="z.B. Hauptstr. 5, 38226 Salzgitter" />
+    </div>
+    <div class="field">
+      <label>Kürzel <span class="field-hint">→ wird in den Notizen gespeichert</span></label>
+      <input id="f-kz" type="text" placeholder="z.B. MG" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel-modal" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-save" id="btn-save" onclick="saveAppointment()">&#10003; Als Termin speichern</button>
+    </div>
+    <div class="save-hint">Wird direkt in deinen Outlook-Kalender eingetragen</div>
+  </div>
+</div>
+
+<!-- Status -->
+<div class="status-bar" id="status-bar"></div>
+
+<script>
+  Office.onReady(() => { render(); });
+
+  const DAYS    = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const MONTHS  = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  const MONTHS_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+  // 07:00 – 18:30 in 30-Min-Schritten
+  const TIMES = [];
+  for (let h = 7; h <= 18; h++) {
+    TIMES.push(`${String(h).padStart(2,'0')}:00`);
+    if (h < 18) TIMES.push(`${String(h).padStart(2,'0')}:30`);
+  }
+
+  let weekOffset = 0;
+  // appointments[dayIndex][time] = { name, addr, kz }
+  let appointments = {};
+  let pendingSlot = null;
+  let clickTimers = {};
+
+  function getMondayOf(offset) {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diff + offset * 7);
+    mon.setHours(0, 0, 0, 0);
+    return mon;
+  }
+
+  function getKW(d) {
+    const tmp = new Date(d);
+    tmp.setHours(0,0,0,0);
+    tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7));
+    const w1 = new Date(tmp.getFullYear(), 0, 4);
+    return 1 + Math.round(((tmp - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7);
+  }
+
+  function nextTime(t) {
+    const i = TIMES.indexOf(t);
+    return i >= 0 && i < TIMES.length - 1 ? TIMES[i + 1] : t;
+  }
+
+  function render() {
+    const mon = getMondayOf(weekOffset);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const kw  = getKW(mon);
+
+    document.getElementById('week-label').innerHTML =
+      `${mon.getDate()}. ${MONTHS_SHORT[mon.getMonth()]} – ${sun.getDate()}. ${MONTHS_SHORT[sun.getMonth()]} ${sun.getFullYear()} <span class="kw-badge">KW ${kw}</span>`;
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const grid  = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+
+    // Corner cell
+    const corner = document.createElement('div');
+    corner.className = 'time-head-corner';
+    grid.appendChild(corner);
+
+    // Day headers
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      dates.push(d);
+      const h = document.createElement('div');
+      h.className = 'col-head' + (d.getTime() === today.getTime() ? ' today' : '');
+      h.innerHTML = `<div class="col-head-day">${DAYS[i]}</div><div class="col-head-date">${d.getDate()}</div>`;
+      grid.appendChild(h);
+    }
+
+    // Time rows
+    TIMES.forEach(t => {
+      // Time label
+      const tc = document.createElement('div');
+      tc.className = 'time-cell';
+      tc.textContent = t;
+      grid.appendChild(tc);
+
+      // Day cells
+      dates.forEach((d, di) => {
+        const apt = (appointments[di] || {})[t];
+        const cell = document.createElement('div');
+        const isHour = t.endsWith(':00');
+        cell.className = 'slot' + (apt ? ' busy' : '') + (isHour ? ' hour-start' : '');
+
+        if (apt) {
+          cell.innerHTML = `<div class="slot-name">${escHtml(apt.name)}</div><div class="slot-sub">${escHtml(apt.addr)}${apt.kz ? ' · ' + escHtml(apt.kz) : ''}</div>`;
+        }
+
+        if (!apt) {
+          const key = `${di}_${t}`;
+          cell.addEventListener('click', () => {
+            if (clickTimers[key]) {
+              clearTimeout(clickTimers[key]);
+              delete clickTimers[key];
+              openModal(di, t, d);
+            } else {
+              clickTimers[key] = setTimeout(() => { delete clickTimers[key]; }, 300);
+            }
+          });
+        }
+        grid.appendChild(cell);
+      });
+    });
+  }
+
+  function openModal(dayIdx, time, date) {
+    pendingSlot = { dayIdx, time, date };
+    const end = nextTime(time);
+    const dayName = DAYS[dayIdx];
+    const dateStr = `${date.getDate()}. ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+    document.getElementById('modal-time-badge').textContent = `🕐 ${dayName}, ${dateStr}  |  ${time} – ${end} Uhr`;
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-addr').value = '';
+    document.getElementById('f-kz').value  = '';
+    document.getElementById('modal-overlay').classList.add('open');
+    setTimeout(() => document.getElementById('f-name').focus(), 100);
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    pendingSlot = null;
+  }
+
+  async function saveAppointment() {
+    const name = document.getElementById('f-name').value.trim();
+    const addr = document.getElementById('f-addr').value.trim();
+    const kz   = document.getElementById('f-kz').value.trim();
+
+    if (!name) {
+      document.getElementById('f-name').focus();
+      document.getElementById('f-name').style.borderColor = '#ef4444';
+      setTimeout(() => document.getElementById('f-name').style.borderColor = '', 1500);
+      return;
+    }
+
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Wird gespeichert …';
+
+    const { dayIdx, time, date } = pendingSlot;
+    const end = nextTime(time);
+
+    // Build start/end Date objects
+    const [sh, sm] = time.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    const startDt = new Date(date); startDt.setHours(sh, sm, 0, 0);
+    const endDt   = new Date(date); endDt.setHours(eh, em, 0, 0);
+
+    try {
+      // Send data back to the add-in taskpane/host
+      Office.context.ui.messageParent(JSON.stringify({
+        action: 'createAppointment',
+        name, addr, kz,
+        start: startDt.toISOString(),
+        end:   endDt.toISOString()
+      }));
+
+      // Save locally so calendar updates immediately
+      if (!appointments[dayIdx]) appointments[dayIdx] = {};
+      appointments[dayIdx][time] = { name, addr, kz };
+
+      closeModal();
+      render();
+      showStatus(`✓ Termin "${name}" wurde gespeichert`);
+    } catch (e) {
+      showStatus('Fehler beim Speichern: ' + e.message);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '✓ Als Termin speichern';
+  }
+
+  function changeWeek(d) { weekOffset += d; render(); }
+  function goToday()     { weekOffset  = 0; render(); }
+
+  function showStatus(msg) {
+    const bar = document.getElementById('status-bar');
+    bar.textContent = msg;
+    bar.style.display = 'block';
+    setTimeout(() => { bar.style.display = 'none'; }, 3000);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
